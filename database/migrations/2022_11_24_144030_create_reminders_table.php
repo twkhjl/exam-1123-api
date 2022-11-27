@@ -18,8 +18,8 @@ class CreateRemindersTable extends Migration
             $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('cascade');
             $table->string('title')->nullable();
             $table->text('description')->nullable();
-            $table->boolean('is_done')->nullable();
-            $table->boolean('send_notification')->nullable();
+            $table->boolean('is_done')->nullable()->default(0);
+            $table->boolean('send_notification')->nullable()->default(0);
             $table->dateTime('send_time')->nullable();
             $table->timestamps();
         });

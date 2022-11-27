@@ -5,17 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Reminder extends Model
+class EmailLog extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'title',
+        'reminder_id',
         'user_id',
+        'title',
         'description',
-        'password',
-        'is_done',
-        'send_notification',
-        'send_time',
+        'sent_at',
     ];
 }

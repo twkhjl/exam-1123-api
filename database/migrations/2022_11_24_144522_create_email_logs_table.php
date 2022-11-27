@@ -19,7 +19,7 @@ class CreateEmailLogsTable extends Migration
             $table->integer('reminder_id')->nullable();
             $table->string('title')->nullable();
             $table->text('description')->nullable();
-            $table->dateTime('send_at')->nullable();
+            $table->dateTime('sent_at')->nullable();
             $table->timestamps();
         });
     }

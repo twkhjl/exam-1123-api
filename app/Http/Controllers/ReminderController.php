@@ -2,49 +2,113 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\Reminder;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+
+use Tymon\JWTAuth\Facades\JWTAuth;
+
 
 
 
 use Illuminate\Support\Facades\Mail;
 use App\Mail\Ttt;
 
-
-
+use App\Jobs\ProcessSendNotification;
+use Carbon\Carbon;
 
 class ReminderController extends Controller
 {
-    //
-
-    public function index()
+    public function __construct()
     {
+        $this->middleware('jwtauth');
+    }
 
-        // return Reminder::all();
-        return Reminder::orderBy('id', 'DESC')->get();
+    public function ttt(Request $request)
+    {
+        function is_same_time($date)
+        {
+            $today =  Carbon::now(config('app.timezone'));
+            $isSameDay = $today->isSameDay($date);
+            $isSameHour = $today->isSameHour($date);
+            $isSameMinute = $today->isSameMinute($date);
+            return $isSameDay && $isSameHour && $isSameMinute;
+        }
+
+        $reminders = Reminder::where('send_notification', 1)
+        ->join('users', 'users.id', '=', 'reminders.user_id')
+        ->select(
+            'reminders.id',
+            'reminders.user_id',
+            'users.name',
+            'users.email',
+            'reminders.title',
+            'reminders.description',
+            'reminders.send_time',
+            'reminders.send_notification',
+            )
+        ->get();
+
+        collect($reminders)->each(function ($item, $key) {
+
+            $date = $item->send_time;
+
+            if (is_same_time($date)) {
+                $description = $item->description ? $item->description:'無備註';
+                $details = [
+                    'email' => $item->email,
+                    'title' => $item->title,
+                    'description' => $description,
+
+                ];
+                dump($details);
+            }
+        });
+
+        return response()->json($reminders);
+
+    }
+
+    public function index(Request $request)
+    {
+        // JWTAuth::parseToken()->authenticate();
+        // return response()->json(auth()->user());
+
+
+        if ($request->get('is_done')) {
+
+            $is_done = $request->get('is_done') == 'true' ? true : false;
+
+            return Reminder::where('is_done', $is_done)
+            ->where('user_id',auth()->user()->id)
+            ->orderBy('id', 'DESC')->get();
+        }
+        return Reminder::where('user_id',auth()->user()->id)
+        ->orderBy('id', 'DESC')->get();
     }
     public function store(Request $request)
     {
-        // return response()->json($request);
 
         try {
 
-            if ($request->input('img') == null) {
-                $request->request->remove('img');
-            }
-            $validator = Validator::make($request->all(), [
-
+            $validateRuleArr = [
                 'title' => ['required'],
-                // 'description' => ['required'],
+            ];
 
-            ], [
+            if ($request->input('send_notification')) {
+                $validateRuleArr['send_time'] = ['required'];
+            }
+
+            $validator = Validator::make($request->all(), $validateRuleArr, [
 
                 'required' => ':attribute不可空白',
             ], [
 
                 'title' => '提醒事項主題',
                 'description' => '提醒事項主題備註',
+                'send_time' => '寄送時間',
             ]);
 
 
@@ -56,14 +120,20 @@ class ReminderController extends Controller
             };
 
 
-
             $reminder = new Reminder();
             $fillable = collect($reminder->getFillable())->toArray();
+
+
+
             $formField = $request->only($fillable);
 
+            $formField['user_id']=auth()->user()->id;
 
             $reminder->create($formField);
-            return response()->json(['error' => 'null', 'data' => $reminder]);
+            return response()->json(['error' => 'null',
+            'data' => $reminder,
+            'user_id'=> auth()->user()->id,
+        ]);
         } catch (\Exception $e) {
 
             return
@@ -129,7 +199,41 @@ class ReminderController extends Controller
     public function send(Request $request)
     {
 
-        Mail::to('someone@kkkkkk.com')->send(new Ttt());
+        $details = ['email' => 'twkhjl@gmail.com'];
+
+        ProcessSendNotification::dispatch($details);
         return response()->json('email sent');
+    }
+    public function toggle_is_done(Request $request)
+    {
+
+        try {
+
+            $validator = Validator::make($request->all(), [
+
+                'is_done' => ['required'],
+
+            ], [
+
+                'required' => ':attribute不可空白',
+            ], [
+                'is_done' => '完成狀態',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()]);
+            };
+
+
+            $reminder = Reminder::find($request->input('id'));
+            $fillable = ['is_done'];
+            $formField = $request->only($fillable);
+            $reminder->update($formField);
+            return response()->json(['error' => 'null', 'data' => $reminder]);
+        } catch (\Exception $e) {
+
+            return
+                response()->json(['error' => 'server', 'message' => $e->getMessage()]);
+        }
     }
 }
